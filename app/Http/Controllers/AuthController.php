@@ -6,41 +6,51 @@ use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
+    protected $authService;
+
+    public function __construct(AuthService $authService)
+    {
+        $this->authService = $authService;
+    }
+
     public function register(Request $request)
     {
-        $user = User::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'phone_number' => $request->phone_number,
-            'password' => Hash::make($request->password),
+        $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'phone_number' => 'required|string|max:20|unique:users',
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
-        $token = JWTAuth::fromUser($user);
+        $data = $this->authService->register($request->all());
 
-        return response()->json(compact('user', 'token'), 201);
+        return response()->json($data, 201);
     }
 
     public function login(Request $request)
     {
-        $credentials = $request->only('email', 'password');
+        $request->validate([
+            'email' => 'required|string|email',
+            'password' => 'required|string',
+        ]);
 
-        if (!$token = JWTAuth::attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
+        $token = $this->authService->login($request->only('email', 'password'));
 
         return response()->json(compact('token'));
     }
 
     public function logout()
     {
-        JWTAuth::invalidate(JWTAuth::getToken());
+        $this->authService->logout();
 
         return response()->json(['message' => 'Successfully logged out']);
     }
 
     public function user()
     {
-        return response()->json(auth()->user());
+        $user = $this->authService->getUser();
+
+        return response()->json($user);
     }
 }
